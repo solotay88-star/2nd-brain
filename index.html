@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Second Brain Map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#121212;color:#eef0f7;font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+body{min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+h1,h2,h3{font-family:"Bricolage Grotesque",system-ui,sans-serif;margin:0}
+button{font-family:inherit;color:inherit;background:#23242e;border:1px solid #3a3c4d;border-radius:999px;padding:8px 12px;cursor:pointer;font-size:14px}
+button:focus-visible,input:focus-visible{outline:2px solid #f2b45a;outline-offset:2px}
+header{padding:14px 16px 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+header h1{font-size:22px}
+header .count{color:#a3abc7;font-size:13px}
+#warn{display:none;margin:8px 16px 0;padding:10px 12px;border:1px solid #ff6b6b;border-radius:10px;background:#2a1d1d;color:#ffd7d7;font-size:13px}
+#chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:#23242e;border:1px solid #3a3c4d;font-size:13px;white-space:nowrap}
+.chip[aria-pressed="true"]{border-color:#f2b45a;background:#33291a;color:#f2b45a}
+.chip .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.chip .badge{background:#f2b45a;color:#121212;border-radius:999px;min-width:18px;text-align:center;font-size:11px;font-weight:600;padding:1px 5px}
+#hint{margin:4px 16px 8px;color:#a3abc7;font-size:13px}
+#scene{position:relative;flex:1;min-height:280px;overflow:hidden;background:#121212;touch-action:none}
+#scene canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.label{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;background:rgba(35,36,46,.92);border:1px solid #3a3c4d;color:#eef0f7;border-radius:999px;padding:4px 9px;font-size:12px;white-space:nowrap;cursor:pointer;max-width:62vw;overflow:hidden;text-overflow:ellipsis}
+.label .badge{background:#f2b45a;color:#121212;border-radius:999px;font-size:10px;font-weight:600;padding:0 5px;margin-left:5px}
+.label .mark{font-weight:700;margin-left:5px}
+.label.overdue .mark{color:#ff6b6b}
+.label.unclear .mark{color:#9aa6d6}
+.label.selected{border-color:#f2b45a}
+#toolbar{position:absolute;top:10px;right:10px;display:flex;gap:8px;z-index:30}
+#toolbar button{background:rgba(35,36,46,.92)}
+#search{position:absolute;top:52px;right:10px;left:10px;max-width:340px;margin-left:auto;z-index:40;display:none;background:#23242e;border:1px solid #3a3c4d;border-radius:12px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+#search.open{display:block}
+#search input{width:100%;padding:10px 12px;background:#1b1c24;color:#eef0f7;border:0;border-bottom:1px solid #3a3c4d;font-size:14px;font-family:inherit}
+#results{max-height:220px;overflow:auto}
+#results button{display:block;width:100%;text-align:left;border:0;border-radius:0;background:transparent;padding:9px 12px;font-size:14px}
+#results button:hover,#results button:focus-visible{background:#2e2f3d}
+#dock{border-top:1px solid #2c2d3a;background:#1b1c24;padding:8px 12px calc(10px + env(safe-area-inset-bottom));z-index:20}
+#dockControls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#dockControls .spacer{flex:1}
+.seg{display:flex;gap:4px}
+.seg button[aria-pressed="true"]{border-color:#f2b45a;color:#f2b45a}
+#card{margin-top:8px}
+#cardBody{overflow:auto;max-height:30vh}
+#dock.collapsed #cardBody{display:none}
+#dock.expanded #cardBody{max-height:64vh}
+@media (min-width:700px){#dock.expanded #cardBody{max-height:70vh}}
+#cardChips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+#cardChips span{background:#23242e;border:1px solid #3a3c4d;border-radius:999px;padding:3px 9px;font-size:12px;color:#a3abc7}
+#cardTitle{font-size:19px;margin:2px 0}
+#cardStatus{color:#a3abc7;font-size:13px;margin-bottom:8px}
+#card h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#a3abc7;margin:12px 0 6px}
+#card ul{margin:0;padding-left:18px}
+#card li{margin:4px 0;font-size:14px;line-height:1.45}
+#linkedList{display:flex;flex-direction:column;gap:6px}
+#linkedList button{text-align:left;border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.4}
+#linkedList .reason{display:block;color:#a3abc7;font-size:12px}
+.muted{color:#a3abc7;font-size:13px}
+#listFallback{display:none;padding:16px;overflow:auto}
+#listFallback.open{display:block}
+#listFallback article{background:#23242e;border:1px solid #3a3c4d;border-radius:12px;padding:12px;margin-bottom:10px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<header>
+<h1>Second Brain Map</h1>
+<span class="count" id="nodeCount"></span>
+</header>
+<div id="warn" role="alert"></div>
+<div id="chips" role="group" aria-label="Filters"></div>
+<p id="hint">Drag to orbit · pinch or scroll to zoom · tap a node or label to open it</p>
+<main id="scene" aria-label="3D map">
+<div id="labels"></div>
+<div id="toolbar">
+<button type="button" id="findBtn">Find</button>
+<button type="button" id="fitBtn">Fit view</button>
+</div>
+<div id="search">
+<input id="searchInput" type="search" placeholder="Find a node…" aria-label="Find a node" autocomplete="off">
+<div id="results" role="listbox" aria-label="Search results"></div>
+</div>
+</main>
+<section id="dock" aria-label="Detail panel">
+<div id="dockControls">
+<button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+<button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+<button type="button" id="prevBtn">Prev</button>
+<button type="button" id="nextBtn">Next</button>
+<span class="spacer"></span>
+<div class="seg" role="group" aria-label="Panel size">
+<button type="button" id="sizeCollapse">Collapse</button>
+<button type="button" id="sizeNormal" aria-pressed="true">Normal</button>
+<button type="button" id="sizeExpand">Expand</button>
+</div>
+</div>
+<div id="card">
+<div id="cardBody">
+<div id="cardChips"></div>
+<h2 id="cardTitle"></h2>
+<p id="cardStatus"></p>
+<h3>Facts</h3>
+<ul id="factList"></ul>
+<h3>Open items</h3>
+<ul id="openList"></ul>
+<h3>Linked to</h3>
+<div id="linkedList"></div>
+</div>
+</div>
+</section>
+<div id="listFallback"></div>
+<script>
+"use strict";
+/* Data: exactly as supplied in the draft. Do not edit facts here; update the draft and rebuild. */
+var DOMAINS = ["Atrium","Work","Coding","Sport","Everyday","Holidays"];
+var DOMAIN_COLORS = ["#6aa9ff","#b7e36a","#5fd3b3","#ff8fa3","#f08a5d","#c59bff"];
+var CORE_COLOR = "#f2b45a";
+var VALID_STATUSES = ["active","overdue","unclear","done","reference"];
+var NODES = [
+{wing:"Atrium",title:"You",status:"reference",facts:["IT auditor","Based in Singapore"],open:[]},
+{wing:"Atrium",title:"Review desk",status:"active",facts:["Review Timesheet at 3pm on every Friday"],open:["Confirm this week's overdue and unclear list"]},
+{wing:"Atrium",title:"House rules",status:"reference",facts:["Scan data stays in the office","Do not build IM2 until specs are finalised","Compact, short answers"],open:[]},
+{wing:"Work",title:"IM2 incident management",status:"active",facts:["Cloud-deployed automation for MAS-regulated financial services","11 ideas logged","Requirements draft UR-01 to UR-06 delivered 15 Nov"],open:["Review requirements draft","Share remaining requirements"]},
+{wing:"Work",title:"Solo's Muse Dash",status:"active",facts:["Tracks 5 things","Refreshes daily at 7am"],open:[]},
+{wing:"Work",title:"Work from home",status:"active",facts:["Wednesdays, full day"],open:[]},
+{wing:"Coding",title:"Vulnerability Assessment Tracker (VAT)",status:"active",facts:["Rebuild done 20 Nov, with round-2 enhancements and timeline steps","Full build verified 21 Nov"],open:["Run six-fix prompt in OpenCode","Run acceptance tests","Test in office on a real .nessus file"]},
+{wing:"Coding",title:"IT Asset EOS Scanner (ITAES)",status:"active",facts:["HTML tool inside office to flag possible EOL/EOS assets","6 requirements logged 21 Nov"],open:["Share remaining requirements"]},
+{wing:"Coding",title:"OpenCode Windows 11 trial",status:"active",facts:["OpenCode 2.3.0 on Windows 11 PC","Phone-to-desktop workflow proven over Tailscale 20 Nov"],open:[]},
+{wing:"Coding",title:"Second Brain Map",status:"active",facts:["Single self-contained HTML page, 3D neural-style map","Repo solotay88-star/2nd-brain, access verified 23 Nov"],open:["Supply domains, nodes and links"]},
+{wing:"Coding",title:"Code Dev",status:"reference",facts:["Tracks IM2, VAT and ITAES"],open:[]},
+{wing:"Sport",title:"Pickleball – 28 Nov court",status:"active",facts:["Ballot won, paid 15 Nov","Sat 28 Nov 2026, 4:00–6:00pm, Court 02, Yangzheng Primary School Hall"],open:[]},
+{wing:"Sport",title:"Pickleball – 6 Dec ballot",status:"done",facts:["Ballot for Sun 6 Dec 1:00–3:00pm unsuccessful","Solo declined reminder, skipping 6 Dec slots"],open:[]},
+{wing:"Sport",title:"Resistance training",status:"active",facts:["Every Wednesday","Usually at 7:45pm"],open:[]},
+{wing:"Everyday",title:"Market and investing news",status:"reference",facts:["Follows Economic Times trading newsletters"],open:[]},
+{wing:"Everyday",title:"Luna app check-in",status:"active",facts:["Check in at 8:15am","Mondays to Fridays"],open:[]},
+{wing:"Holidays",title:"Yunnan trip",status:"active",facts:["8 Apr to 18 Apr 2027"],open:[]},
+{wing:"Holidays",title:"Bangkok trip",status:"active",facts:["23 Jan to 25 Jan 2027"],open:[]}
+];
+var LINKS = [
+["Vulnerability Assessment Tracker (VAT)","OpenCode Windows 11 trial","VAT rebuild was built from phone over Tailscale in OpenCode"],
+["Second Brain Map","Review desk","Inference: Map updates weekly via Review desk"]
+];
+var REDUCED = false;
+try { REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { REDUCED = false; }
+
+/* Validation: degrade gracefully, never crash on bad data. */
+var problems = [];
+var byTitle = {};
+var validNodes = [];
+NODES.forEach(function (n, i) {
+  if (!n || typeof n.title !== "string" || !n.title) { problems.push("Node " + i + " has no title."); return; }
+  if (byTitle[n.title]) { problems.push("Duplicate node title: " + n.title + "."); return; }
+  if (DOMAINS.indexOf(n.wing) < 0) { problems.push("Node " + n.title + " has an unknown domain."); return; }
+  if (VALID_STATUSES.indexOf(n.status) < 0) { problems.push("Node " + n.title + " has an invalid status."); return; }
+  if (!Array.isArray(n.facts) || !Array.isArray(n.open)) { problems.push("Node " + n.title + " has facts/open items that are not lists."); return; }
+  byTitle[n.title] = n;
+  validNodes.push(n);
+});
+var validLinks = [];
+LINKS.forEach(function (l) {
+  if (!Array.isArray(l) || l.length !== 3) { problems.push("A link is not in Title A, Title B, reason form."); return; }
+  if (l[0] === l[1]) { problems.push("Self-link ignored: " + l[0] + "."); return; }
+  if (!byTitle[l[0]] || !byTitle[l[1]]) { problems.push("Link refers to a missing node: " + l[0] + " / " + l[1] + "."); return; }
+  validLinks.push(l);
+});
+if (problems.length) {
+  var w = document.getElementById("warn");
+  w.style.display = "block";
+  w.textContent = "Data problem: " + problems.join(" ");
+}
+function domainColor(d) { var i = DOMAINS.indexOf(d); return i < 0 ? "#a3abc7" : DOMAIN_COLORS[i]; }
+function openCountFor(d) { var c = 0; validNodes.forEach(function (n) { if (n.wing === d) c += n.open.length; }); return c; }
+function linkedTitles(title) {
+  var out = [];
+  validLinks.forEach(function (l) {
+    if (l[0] === title) out.push({title: l[1], reason: l[2]});
+    else if (l[1] === title) out.push({title: l[0], reason: l[2]});
+  });
+  return out;
+}
+function needsCount() { var c = 0; validNodes.forEach(function (n) { if (n.status === "overdue" || n.status === "unclear") c++; }); return c; }
+
+/* Layout: You at origin; hubs on a ring; hub nodes on a golden-angle spiral sphere. */
+var POS = {};
+var HUBS = [];
+(function layout() {
+  POS["You"] = {x: 0, y: 0, z: 0, r: 2.6, hub: false};
+  POS["Review desk"] = {x: 7, y: 8, z: 5, r: 1.0, hub: false};
+  POS["House rules"] = {x: -7, y: -8, z: -5, r: 1.0, hub: false};
+  var hubDomains = DOMAINS.filter(function (d) { return d !== "Atrium"; });
+  hubDomains.forEach(function (d, i) {
+    var a = (i / hubDomains.length) * Math.PI * 2;
+    var p = {x: Math.cos(a) * 28.6, y: (i % 2 === 0 ? 9 : -9), z: Math.sin(a) * 28.6, r: 1.7, hub: true, domain: d};
+    HUBS.push(p);
+    POS["__hub__" + d] = p;
+  });
+  hubDomains.forEach(function (d) {
+    var members = validNodes.filter(function (n) { return n.wing === d; });
+    var hub = POS["__hub__" + d];
+    var golden = Math.PI * (3 - Math.sqrt(5));
+    members.forEach(function (n, k) {
+      var yy = members.length === 1 ? 0 : 1 - (k / (members.length - 1)) * 2;
+      var rad = Math.sqrt(Math.max(0, 1 - yy * yy));
+      var th = golden * k;
+      POS[n.title] = {x: hub.x + Math.cos(th) * rad * 9.5, y: hub.y + yy * 9.5, z: hub.z + Math.sin(th) * rad * 9.5, r: 1.0, hub: false};
+    });
+  });
+})();
+
+/* Shared state. */
+var state = {
+  selected: null,           /* node title, or "__hub__"+domain, or null */
+  filter: "all",            /* all | needs | domain name */
+  theta: 0.6, phi: 1.05, dist: 62, target: {x: 0, y: 0, z: 0},
+  goal: null, interacted: false
+};
+var sceneEl = document.getElementById("scene");
+var labelsEl = document.getElementById("labels");
+var cardBody = document.getElementById("cardBody");
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
+function clearEl(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function statusLabel(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function nodeColor(n) { return n.title === "You" ? CORE_COLOR : domainColor(n.wing); }
+
+/* Header count and chips. */
+document.getElementById("nodeCount").textContent = validNodes.length + " nodes · " + DOMAINS.length + " domains";
+var chipsEl = document.getElementById("chips");
+function buildChips() {
+  clearEl(chipsEl);
+  function chip(label, value, dot, badge) {
+    var b = el("button", "chip", null);
+    b.type = "button";
+    b.setAttribute("aria-pressed", state.filter === value ? "true" : "false");
+    if (dot) { var d = el("span", "dot"); d.style.background = dot; b.appendChild(d); }
+    b.appendChild(document.createTextNode(label));
+    if (badge !== undefined && badge !== null) { var s = el("span", "badge", String(badge)); b.appendChild(s); }
+    b.addEventListener("click", function () { applyFilter(value); });
+    chipsEl.appendChild(b);
+  }
+  chip("All", "all");
+  chip("Needs a decision", "needs", null, needsCount());
+  DOMAINS.forEach(function (d) { chip(d, d, domainColor(d), openCountFor(d)); });
+}
+function applyFilter(value) {
+  state.filter = value;
+  state.selected = null;
+  buildChips();
+  if (value === "needs") showNeeds();
+  else if (value === "all") showOverview();
+  else showHub(value);
+  updateLabels();
+  refreshRenderer();
+}
+buildChips();
+
+/* Detail card. */
+function showNode(title) {
+  var n = byTitle[title];
+  if (!n) return;
+  state.selected = title;
+  markInteracted();
+  var chips = document.getElementById("cardChips"); clearEl(chips);
+  chips.appendChild(el("span", null, n.wing));
+  chips.appendChild(el("span", null, statusLabel(n.status)));
+  document.getElementById("cardTitle").textContent = n.title;
+  document.getElementById("cardStatus").textContent = statusLabel(n.status) + " · " + n.wing + (n.open.length ? " · " + n.open.length + " open item" + (n.open.length > 1 ? "s" : "") : "");
+  var facts = document.getElementById("factList"); clearEl(facts);
+  if (!n.facts.length) facts.appendChild(el("li", "muted", "No facts listed."));
+  n.facts.forEach(function (f) { facts.appendChild(el("li", null, f)); });
+  var opens = document.getElementById("openList"); clearEl(opens);
+  if (!n.open.length) opens.appendChild(el("li", "muted", "None."));
+  n.open.forEach(function (o) { opens.appendChild(el("li", null, o)); });
+  var linked = document.getElementById("linkedList"); clearEl(linked);
+  var ls = linkedTitles(title);
+  if (!ls.length) linked.appendChild(el("span", "muted", "None."));
+  ls.forEach(function (item) {
+    var b = el("button", null, null); b.type = "button";
+    b.appendChild(document.createTextNode(item.title));
+    var r = el("span", "reason", item.reason); b.appendChild(r);
+    b.addEventListener("click", function () { selectNode(item.title); });
+    linked.appendChild(b);
+  });
+  cardBody.scrollTop = 0;
+  updateLabels();
+  refreshRenderer();
+}
+function showHub(domain) {
+  state.selected = "__hub__" + domain;
+  markInteracted();
+  var members = validNodes.filter(function (n) { return n.wing === domain; });
+  var chips = document.getElementById("cardChips"); clearEl(chips);
+  chips.appendChild(el("span", null, domain));
+  document.getElementById("cardTitle").textContent = domain;
+  document.getElementById("cardStatus").textContent = members.length + " node" + (members.length === 1 ? "" : "s") + " · " + openCountFor(domain) + " open item" + (openCountFor(domain) === 1 ? "" : "s");
+  var facts = document.getElementById("factList"); clearEl(facts);
+  members.forEach(function (n) { facts.appendChild(el("li", null, n.title + " — " + statusLabel(n.status))); });
+  var opens = document.getElementById("openList"); clearEl(opens);
+  var any = false;
+  members.forEach(function (n) { n.open.forEach(function (o) { any = true; opens.appendChild(el("li", null, n.title + ": " + o)); }); });
+  if (!any) opens.appendChild(el("li", "muted", "None."));
+  var linked = document.getElementById("linkedList"); clearEl(linked);
+  linked.appendChild(el("span", "muted", "Select a node to see its links."));
+  cardBody.scrollTop = 0;
+  updateLabels();
+  refreshRenderer();
+}
+function showOverview() {
+  state.selected = null;
+  var chips = document.getElementById("cardChips"); clearEl(chips);
+  chips.appendChild(el("span", null, "Overview"));
+  document.getElementById("cardTitle").textContent = "All nodes";
+  var counts = {};
+  validNodes.forEach(function (n) { counts[n.status] = (counts[n.status] || 0) + 1; });
+  document.getElementById("cardStatus").textContent = validNodes.length + " nodes · " + DOMAINS.length + " domains · " + needsCount() + " need a decision";
+  var facts = document.getElementById("factList"); clearEl(facts);
+  VALID_STATUSES.forEach(function (s) { if (counts[s]) facts.appendChild(el("li", null, statusLabel(s) + ": " + counts[s])); });
+  var opens = document.getElementById("openList"); clearEl(opens);
+  var total = 0; validNodes.forEach(function (n) { total += n.open.length; });
+  opens.appendChild(el("li", null, total + " open item" + (total === 1 ? "" : "s") + " across the map."));
+  var linked = document.getElementById("linkedList"); clearEl(linked);
+  linked.appendChild(el("span", "muted", "Tap a node or label to open it."));
+  cardBody.scrollTop = 0;
+  updateLabels();
+  refreshRenderer();
+}
+function showNeeds() {
+  state.selected = null;
+  var list = validNodes.filter(function (n) { return n.status === "overdue" || n.status === "unclear"; });
+  list.sort(function (a, b) {
+    var ra = a.status === "overdue" ? 0 : 1, rb = b.status === "overdue" ? 0 : 1;
+    return ra - rb || a.title.localeCompare(b.title);
+  });
+  var chips = document.getElementById("cardChips"); clearEl(chips);
+  chips.appendChild(el("span", null, "Needs a decision"));
+  document.getElementById("cardTitle").textContent = "Needs a decision";
+  document.getElementById("cardStatus").textContent = list.length + " node" + (list.length === 1 ? "" : "s") + " — overdue first";
+  var facts = document.getElementById("factList"); clearEl(facts);
+  if (!list.length) facts.appendChild(el("li", null, "Nothing overdue or unclear right now."));
+  list.forEach(function (n) { facts.appendChild(el("li", null, n.title + " — " + statusLabel(n.status))); });
+  var opens = document.getElementById("openList"); clearEl(opens);
+  opens.appendChild(el("li", "muted", "Select a node above to see its open items."));
+  var linked = document.getElementById("linkedList"); clearEl(linked);
+  list.forEach(function (n) {
+    var b = el("button", null, null); b.type = "button";
+    b.appendChild(document.createTextNode(n.title + " — " + statusLabel(n.status)));
+    b.addEventListener("click", function () { selectNode(n.title); });
+    linked.appendChild(b);
+  });
+  if (!list.length) linked.appendChild(el("span", "muted", "None."));
+  cardBody.scrollTop = 0;
+  updateLabels();
+  refreshRenderer();
+}
+
+/* Selection and camera moves. */
+function markInteracted() {
+  if (!state.interacted) { state.interacted = true; document.getElementById("hint").style.display = "none"; }
+}
+function flyTo(target, dist) {
+  if (REDUCED) { state.target = {x: target.x, y: target.y, z: target.z}; state.dist = dist; state.goal = null; return; }
+  state.goal = {target: {x: target.x, y: target.y, z: target.z}, dist: dist};
+}
+function selectNode(title) {
+  var n = byTitle[title];
+  if (!n) return;
+  state.filter = "all"; buildChips();
+  showNode(title);
+  var p = POS[title];
+  if (p) flyTo(p, 34);
+}
+function selectHub(domain) {
+  state.filter = domain; buildChips();
+  showHub(domain);
+  var p = POS["__hub__" + domain];
+  if (p) flyTo(p, 50);
+}
+function relatedTitles() {
+  var rel = {};
+  if (!state.selected) return rel;
+  if (state.selected.indexOf("__hub__") === 0) {
+    var d = state.selected.slice(7);
+    rel[state.selected] = true;
+    validNodes.forEach(function (n) { if (n.wing === d) rel[n.title] = true; });
+    return rel;
+  }
+  rel[state.selected] = true;
+  var n = byTitle[state.selected];
+  if (n) validNodes.forEach(function (m) { if (m.wing === n.wing) rel[m.title] = true; });
+  linkedTitles(state.selected).forEach(function (l) { rel[l.title] = true; });
+  return rel;
+}
+function isDimmed(title) {
+  if (!state.selected) return false;
+  return !relatedTitles()[title];
+}
+
+/* Labels. */
+function visibleLabelItems() {
+  var items = [];
+  function hubItem(d) { items.push({key: "__hub__" + d, title: d, pos: POS["__hub__" + d], status: null, open: openCountFor(d), isHub: true}); }
+  function nodeItem(n) { items.push({key: n.title, title: n.title, pos: POS[n.title], status: n.status, open: n.open.length, isHub: false}); }
+  if (state.filter === "needs") {
+    validNodes.forEach(function (n) { if (n.status === "overdue" || n.status === "unclear") nodeItem(n); });
+    return items;
+  }
+  if (state.filter !== "all") {
+    hubItem(state.filter);
+    validNodes.forEach(function (n) { if (n.wing === state.filter) nodeItem(n); });
+    return items;
+  }
+  if (state.selected) {
+    if (state.selected.indexOf("__hub__") === 0) {
+      var d = state.selected.slice(7);
+      hubItem(d);
+      validNodes.forEach(function (n) { if (n.wing === d) nodeItem(n); });
+      return items;
+    }
+    var sel = byTitle[state.selected];
+    if (sel) {
+      nodeItem(sel);
+      validNodes.forEach(function (n) { if (n.wing === sel.wing && n.title !== sel.title) nodeItem(n); });
+      linkedTitles(sel.title).forEach(function (l) { if (l.title !== sel.title && !items.some(function (it) { return it.key === l.title; })) nodeItem(byTitle[l.title]); });
+      return items;
+    }
+  }
+  if (state.dist > 45) {
+    nodeItem(byTitle["You"]);
+    DOMAINS.filter(function (d) { return d !== "Atrium"; }).forEach(hubItem);
+    return items;
+  }
+  validNodes.forEach(nodeItem);
+  return items;
+}
+function updateLabels() {
+  clearEl(labelsEl);
+  var w = sceneEl.clientWidth, h = sceneEl.clientHeight;
+  if (!w || !h || !renderer || !renderer.project) return;
+  var placed = [];
+  visibleLabelItems().forEach(function (item) {
+    if (!item.pos) return;
+    var pt = renderer.project(item.pos);
+    if (!pt || pt.behind) return;
+    var x = Math.max(48, Math.min(w - 48, pt.x));
+    var y = Math.max(16, Math.min(h - 16, pt.y));
+    for (var tries = 0; tries < 6; tries++) {
+      var clash = placed.some(function (p) { return Math.abs(p.x - x) < 90 && Math.abs(p.y - y) < 24; });
+      if (!clash) break;
+      y = Math.min(h - 16, y + 26);
+    }
+    placed.push({x: x, y: y});
+    var lab = el("button", "label" + (item.status ? " " + item.status : "") + (state.selected === item.key ? " selected" : ""), null);
+    lab.type = "button";
+    lab.style.left = x + "px"; lab.style.top = y + "px";
+    lab.appendChild(document.createTextNode(item.title));
+    if (item.open) lab.appendChild(el("span", "badge", String(item.open)));
+    if (item.status === "overdue") lab.appendChild(el("span", "mark", "!"));
+    if (item.status === "unclear") lab.appendChild(el("span", "mark", "?"));
+    lab.addEventListener("click", function (ev) { ev.stopPropagation(); if (item.isHub) selectHub(item.title); else selectNode(item.title); });
+    labelsEl.appendChild(lab);
+  });
+}
+
+/* Orbit state and shared pointer / keyboard handling. */
+function cameraPos() {
+  var sp = Math.sin(state.phi), cp = Math.cos(state.phi);
+  return {x: state.target.x + state.dist * sp * Math.sin(state.theta), y: state.target.y + state.dist * cp, z: state.target.z + state.dist * sp * Math.cos(state.theta)};
+}
+var pointers = new Map();
+var lastPinch = 0, downPos = null, moved = false;
+sceneEl.addEventListener("pointerdown", function (e) {
+  sceneEl.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (pointers.size === 1) { downPos = {x: e.clientX, y: e.clientY}; moved = false; }
+  if (pointers.size === 2) { var pts = Array.from(pointers.values()); lastPinch = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y); }
+  markInteracted();
+});
+sceneEl.addEventListener("pointermove", function (e) {
+  if (!pointers.has(e.pointerId)) return;
+  var prev = pointers.get(e.pointerId);
+  var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+  pointers.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 6) moved = true;
+  if (pointers.size === 2) {
+    var pts = Array.from(pointers.values());
+    var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    if (lastPinch > 0) state.dist = Math.max(12, Math.min(110, state.dist * lastPinch / d));
+    lastPinch = d; state.goal = null; return;
+  }
+  state.theta -= dx * 0.005;
+  state.phi = Math.max(0.15, Math.min(2.99, state.phi - dy * 0.005));
+  state.goal = null;
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) lastPinch = 0;
+  if (pointers.size === 0 && downPos && !moved) pickAt(e.clientX, e.clientY);
+  downPos = null;
+}
+sceneEl.addEventListener("pointerup", endPointer);
+sceneEl.addEventListener("pointercancel", endPointer);
+sceneEl.addEventListener("wheel", function (e) { e.preventDefault(); markInteracted(); state.dist = Math.max(12, Math.min(110, state.dist * Math.exp(e.deltaY * 0.001))); state.goal = null; }, {passive: false});
+document.addEventListener("keydown", function (e) {
+  var tag = (e.target && e.target.tagName) || "";
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  var used = true;
+  if (e.key === "ArrowLeft") state.theta += 0.12;
+  else if (e.key === "ArrowRight") state.theta -= 0.12;
+  else if (e.key === "ArrowUp") state.phi = Math.max(0.15, state.phi - 0.1);
+  else if (e.key === "ArrowDown") state.phi = Math.min(2.99, state.phi + 0.1);
+  else if (e.key === "+" || e.key === "=") state.dist = Math.max(12, state.dist - 4);
+  else if (e.key === "-" || e.key === "_") state.dist = Math.min(110, state.dist + 4);
+  else used = false;
+  if (used) { e.preventDefault(); markInteracted(); state.goal = null; }
+});
+
+/* Renderers. */
+var renderer = null;
+function refreshRenderer() { if (renderer && renderer.refresh) renderer.refresh(); }
+function pickAt(clientX, clientY) { if (renderer && renderer.pick) renderer.pick(clientX, clientY); }
+
+function initThree() {
+  if (typeof THREE === "undefined") return false;
+  var canvasTest = document.createElement("canvas");
+  var gl = null;
+  try { gl = canvasTest.getContext("webgl") || canvasTest.getContext("experimental-webgl"); } catch (e) { gl = null; }
+  if (!gl) return false;
+  var ren = new THREE.WebGLRenderer({antialias: true});
+  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  ren.setClearColor(0x121212, 1);
+  sceneEl.insertBefore(ren.domElement, labelsEl);
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x121212, 60, 150);
+  var camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  var dir = new THREE.DirectionalLight(0xffffff, 0.7); dir.position.set(30, 50, 40); scene.add(dir);
+  var coreLight = new THREE.PointLight(0xf2b45a, 0.9, 80); coreLight.position.set(0, 0, 0); scene.add(coreLight);
+  var dustGeo = new THREE.BufferGeometry();
+  var dustPos = new Float32Array(600 * 3);
+  for (var i = 0; i < 600; i++) {
+    var r = 20 + Math.random() * 60, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    dustPos[i * 3] = r * Math.sin(ph) * Math.cos(th); dustPos[i * 3 + 1] = r * Math.cos(ph); dustPos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+  scene.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({color: 0x8a93b8, size: 0.18, transparent: true, opacity: 0.45})));
+  var meshes = {}, hubMeshes = {};
+  function sphere(x, y, z, r, color) {
+    var m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), new THREE.MeshStandardMaterial({color: color, emissive: color, emissiveIntensity: 0.25, transparent: true, opacity: 1}));
+    m.position.set(x, y, z); scene.add(m); return m;
+  }
+  validNodes.forEach(function (n) { var p = POS[n.title]; if (p) meshes[n.title] = sphere(p.x, p.y, p.z, p.r, nodeColor(n)); });
+  DOMAINS.filter(function (d) { return d !== "Atrium"; }).forEach(function (d) { var p = POS["__hub__" + d]; hubMeshes[d] = sphere(p.x, p.y, p.z, p.r, domainColor(d)); });
+  var linkLines = [], pulses = [];
+  var pulseGeo = new THREE.SphereGeometry(0.35, 10, 8);
+  validLinks.forEach(function (l) {
+    var a = POS[l[0]], b = POS[l[1]];
+    if (!a || !b) return;
+    var g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x, a.y, a.z), new THREE.Vector3(b.x, b.y, b.z)]);
+    var line = new THREE.Line(g, new THREE.LineBasicMaterial({color: 0x8a93b8, transparent: true, opacity: 0.4}));
+    scene.add(line); linkLines.push(line);
+    if (!REDUCED) { var pm = new THREE.Mesh(pulseGeo, new THREE.MeshBasicMaterial({color: 0xf2b45a})); scene.add(pm); pulses.push({mesh: pm, a: a, b: b, t: Math.random()}); }
+  });
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.07, 10, 48), new THREE.MeshBasicMaterial({color: 0xf2b45a}));
+  ring.visible = false; scene.add(ring);
+  var ray = new THREE.Raycaster();
+  function resize() {
+    var w = sceneEl.clientWidth, h = sceneEl.clientHeight;
+    if (!w || !h) return;
+    ren.setSize(w, h);
+    camera.aspect = w / h;
+    camera.setViewOffset(w, h, 0, -h * 0.04, w, h);
+    camera.updateProjectionMatrix();
+  }
+  function project(p) {
+    var v = new THREE.Vector3(p.x, p.y, p.z).project(camera);
+    return {x: (v.x * 0.5 + 0.5) * sceneEl.clientWidth, y: (-v.y * 0.5 + 0.5) * sceneEl.clientHeight, behind: v.z > 1};
+  }
+  function renderFrame(now) {
+    var cp = cameraPos();
+    camera.position.set(cp.x, cp.y, cp.z);
+    camera.lookAt(state.target.x, state.target.y, state.target.z);
+    if (state.selected && state.selected.indexOf("__hub__") !== 0 && POS[state.selected]) {
+      var p = POS[state.selected]; ring.visible = true; ring.position.set(p.x, p.y, p.z); ring.lookAt(camera.position);
+      ring.scale.setScalar(p.r + 0.5);
+    } else ring.visible = false;
+    pulses.forEach(function (pu) {
+      pu.t += 0.0016; if (pu.t > 1) pu.t = 0;
+      pu.mesh.position.set(pu.a.x + (pu.b.x - pu.a.x) * pu.t, pu.a.y + (pu.b.y - pu.a.y) * pu.t, pu.a.z + (pu.b.z - pu.a.z) * pu.t);
+    });
+    ren.render(scene, camera);
+  }
+  function refresh() {
+    var rel = relatedTitles();
+    Object.keys(meshes).forEach(function (t) { meshes[t].material.opacity = state.selected && !rel[t] ? 0.22 : 1; });
+    Object.keys(hubMeshes).forEach(function (d) {
+      var dim = false;
+      if (state.selected) dim = state.selected !== "__hub__" + d && !(byTitle[state.selected] && byTitle[state.selected].wing === d);
+      hubMeshes[d].material.opacity = dim ? 0.22 : 1;
+    });
+    linkLines.forEach(function (ln) { ln.material.opacity = state.selected ? 0.18 : 0.4; });
+  }
+  function pick(clientX, clientY) {
+    var rect = ren.domElement.getBoundingClientRect();
+    var mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    var my = -((clientY - rect.top) / rect.height) * 2 + 1;
+    ray.setFromCamera({x: mx, y: my}, camera);
+    var all = [];
+    Object.keys(meshes).forEach(function (t) { all.push(meshes[t]); });
+    Object.keys(hubMeshes).forEach(function (d) { all.push(hubMeshes[d]); });
+    var hits = ray.intersectObjects(all, false);
+    if (!hits.length) return;
+    var hit = hits[0].object;
+    var title = null;
+    Object.keys(meshes).forEach(function (t) { if (meshes[t] === hit) title = t; });
+    if (title) { selectNode(title); return; }
+    Object.keys(hubMeshes).forEach(function (d) { if (hubMeshes[d] === hit) selectHub(d); });
+  }
+  renderer = {type: "three", project: project, render: renderFrame, refresh: refresh, pick: pick, resize: resize, dispose: function () { try { ren.dispose(); } catch (e) {} if (ren.domElement.parentNode) ren.domElement.parentNode.removeChild(ren.domElement); }};
+  resize();
+  return true;
+}
+
+function initCanvas() {
+  var cv = document.createElement("canvas");
+  sceneEl.insertBefore(cv, labelsEl);
+  var ctx = cv.getContext("2d");
+  if (!ctx) return false;
+  var dust = [];
+  for (var i = 0; i < 600; i++) {
+    var r = 20 + Math.random() * 60, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    dust.push({x: r * Math.sin(ph) * Math.cos(th), y: r * Math.cos(ph), z: r * Math.sin(ph) * Math.sin(th)});
+  }
+  function resize() { var w = sceneEl.clientWidth, h = sceneEl.clientHeight; if (w && h) { cv.width = w * (window.devicePixelRatio || 1); cv.height = h * (window.devicePixelRatio || 1); cv.style.width = w + "px"; cv.style.height = h + "px"; } }
+  function project(p) {
+    var cp = cameraPos();
+    var fx = state.target.x - cp.x, fy = state.target.y - cp.y, fz = state.target.z - cp.z;
+    var fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+    var rx = -fz, ry = 0, rz = fx; var rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
+    var ux = ry * fz - rz * fy, uy = rz * fx - rx * fz, uz = rx * fy - ry * fx;
+    var vx = p.x - cp.x, vy = p.y - cp.y, vz = p.z - cp.z;
+    var zc = vx * fx + vy * fy + vz * fz;
+    if (zc <= 0.5) return {x: 0, y: 0, behind: true};
+    var w = sceneEl.clientWidth, h = sceneEl.clientHeight;
+    var f = (h / 2) / Math.tan(55 * Math.PI / 360);
+    return {x: w / 2 + (vx * rx + vy * ry + vz * rz) * f / zc, y: h / 2 - (vx * ux + vy * uy + vz * uz) * f / zc, behind: false, depth: zc};
+  }
+  function renderFrame(now) {
+    var w = sceneEl.clientWidth, h = sceneEl.clientHeight;
+    if (!w || !h) return;
+    var scale = window.devicePixelRatio || 1;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = "#121212"; ctx.fillRect(0, 0, w, h);
+    dust.forEach(function (d) { var p = project(d); if (!p.behind) { ctx.fillStyle = "rgba(138,147,184,0.35)"; ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill(); } });
+    var rel = relatedTitles();
+    ctx.strokeStyle = "rgba(138,147,184,0.4)"; ctx.lineWidth = 1;
+    validLinks.forEach(function (l) {
+      var a = project(POS[l[0]]), b = project(POS[l[1]]);
+      if (!a || !b || a.behind || b.behind) return;
+      ctx.globalAlpha = state.selected ? 0.18 : 1;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    function drawNode(p, color, r, title) {
+      var pr = project(p); if (!pr || pr.behind) return null;
+      var px = Math.max(0.6, r * 320 / (pr.depth || 60));
+      ctx.globalAlpha = state.selected && title && !rel[title] ? 0.22 : 1;
+      var grad = ctx.createRadialGradient(pr.x, pr.y, 0, pr.x, pr.y, px * 2.2);
+      grad.addColorStop(0, color); grad.addColorStop(1, "rgba(18,18,18,0)");
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(pr.x, pr.y, px * 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(pr.x, pr.y, px, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      return pr;
+    }
+    validNodes.forEach(function (n) { drawNode(POS[n.title], nodeColor(n), POS[n.title].r, n.title); });
+    DOMAINS.filter(function (d) { return d !== "Atrium"; }).forEach(function (d) { drawNode(POS["__hub__" + d], domainColor(d), 1.7, "__hub__" + d); });
+    if (state.selected && state.selected.indexOf("__hub__") !== 0 && POS[state.selected]) {
+      var sp = project(POS[state.selected]);
+      if (sp && !sp.behind) { ctx.strokeStyle = "#f2b45a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sp.x, sp.y, (POS[state.selected].r + 0.5) * 320 / (sp.depth || 60), 0, Math.PI * 2); ctx.stroke(); }
+    }
+  }
+  function pick(clientX, clientY) {
+    var rect = cv.getBoundingClientRect();
+    var mx = clientX - rect.left, my = clientY - rect.top;
+    var best = null, bestD = 28;
+    function test(p, key) { var pr = project(p); if (!pr || pr.behind) return; var d = Math.hypot(pr.x - mx, pr.y - my); if (d < bestD) { bestD = d; best = key; } }
+    validNodes.forEach(function (n) { test(POS[n.title], n.title); });
+    DOMAINS.filter(function (d) { return d !== "Atrium"; }).forEach(function (d) { test(POS["__hub__" + d], "__hub__" + d); });
+    if (!best) return;
+    if (best.indexOf("__hub__") === 0) selectHub(best.slice(7)); else selectNode(best);
+  }
+  renderer = {type: "canvas", project: project, render: renderFrame, refresh: function () {}, pick: pick, resize: resize, dispose: function () { if (cv.parentNode) cv.parentNode.removeChild(cv); }};
+  resize();
+  return true;
+}
+
+function showListFallback() {
+  var fb = document.getElementById("listFallback");
+  fb.className = "open";
+  clearEl(fb);
+  validNodes.forEach(function (n) {
+    var a = el("article", null, null);
+    a.appendChild(el("h2", null, n.title));
+    a.appendChild(el("p", "muted", statusLabel(n.status) + " · " + n.wing));
+    n.facts.forEach(function (f) { a.appendChild(el("p", null, f)); });
+    a.addEventListener("click", function () { selectNode(n.title); });
+    fb.appendChild(a);
+  });
+  sceneEl.style.display = "none";
+}
+
+/* Dock controls, search, Prev/Next, Fit. */
+document.getElementById("zoomIn").addEventListener("click", function () { markInteracted(); state.dist = Math.max(12, state.dist - 6); state.goal = null; });
+document.getElementById("zoomOut").addEventListener("click", function () { markInteracted(); state.dist = Math.min(110, state.dist + 6); state.goal = null; });
+document.getElementById("fitBtn").addEventListener("click", function () {
+  state.filter = "all"; buildChips(); showOverview();
+  state.theta = 0.6; state.phi = 1.05; state.target = {x: 0, y: 0, z: 0};
+  flyTo({x: 0, y: 0, z: 0}, 62);
+});
+function orderedNodes() {
+  if (state.filter === "needs") return validNodes.filter(function (n) { return n.status === "overdue" || n.status === "unclear"; });
+  if (state.filter !== "all") return validNodes.filter(function (n) { return n.wing === state.filter; });
+  return validNodes.slice();
+}
+function stepNode(dir) {
+  var list = orderedNodes();
+  if (!list.length) return;
+  var i = list.findIndex(function (n) { return n.title === state.selected; });
+  var next = list[(i + dir + list.length) % list.length];
+  selectNode(next.title);
+}
+document.getElementById("prevBtn").addEventListener("click", function () { stepNode(-1); });
+document.getElementById("nextBtn").addEventListener("click", function () { stepNode(1); });
+var dock = document.getElementById("dock");
+function setSize(mode) {
+  dock.classList.remove("collapsed", "expanded");
+  if (mode === "collapsed") dock.classList.add("collapsed");
+  if (mode === "expanded") dock.classList.add("expanded");
+  document.getElementById("sizeCollapse").setAttribute("aria-pressed", mode === "collapsed" ? "true" : "false");
+  document.getElementById("sizeNormal").setAttribute("aria-pressed", mode === "normal" ? "true" : "false");
+  document.getElementById("sizeExpand").setAttribute("aria-pressed", mode === "expanded" ? "true" : "false");
+  if (renderer && renderer.resize) renderer.resize();
+}
+document.getElementById("sizeCollapse").addEventListener("click", function () { setSize("collapsed"); });
+document.getElementById("sizeNormal").addEventListener("click", function () { setSize("normal"); });
+document.getElementById("sizeExpand").addEventListener("click", function () { setSize("expanded"); });
+var searchBox = document.getElementById("search");
+var searchInput = document.getElementById("searchInput");
+var resultsEl = document.getElementById("results");
+document.getElementById("findBtn").addEventListener("click", function () {
+  var open = searchBox.classList.toggle("open");
+  if (open) searchInput.focus();
+  renderSearch();
+});
+function renderSearch() {
+  clearEl(resultsEl);
+  var q = searchInput.value.trim().toLowerCase();
+  if (!q) return;
+  var matches = validNodes.filter(function (n) { return n.title.toLowerCase().indexOf(q) >= 0 || n.wing.toLowerCase().indexOf(q) >= 0; }).slice(0, 8);
+  matches.forEach(function (n) {
+    var b = el("button", null, null); b.type = "button"; b.setAttribute("role", "option");
+    b.appendChild(document.createTextNode(n.title + " · " + n.wing));
+    b.addEventListener("click", function () { searchBox.classList.remove("open"); selectNode(n.title); });
+    resultsEl.appendChild(b);
+  });
+}
+searchInput.addEventListener("input", renderSearch);
+searchInput.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    var q = searchInput.value.trim().toLowerCase();
+    var m = validNodes.find(function (n) { return n.title.toLowerCase().indexOf(q) >= 0; });
+    if (m) { searchBox.classList.remove("open"); selectNode(m.title); }
+  }
+  if (e.key === "Escape") searchBox.classList.remove("open");
+});
+window.addEventListener("resize", function () { if (renderer && renderer.resize) renderer.resize(); });
+
+/* Start: try three.js, fall back to canvas, then to a plain list. */
+showOverview();
+var started = false;
+try { started = initThree(); } catch (e) {
+  started = false;
+  while (sceneEl.firstChild && sceneEl.firstChild !== labelsEl) sceneEl.removeChild(sceneEl.firstChild);
+  if (renderer && renderer.dispose) { try { renderer.dispose(); } catch (err) {} }
+  renderer = null;
+}
+if (!started) {
+  try { started = initCanvas(); } catch (e) {
+    started = false;
+    if (renderer && renderer.dispose) { try { renderer.dispose(); } catch (err) {} }
+    renderer = null;
+  }
+}
+if (!started) showListFallback();
+function animate(now) {
+  requestAnimationFrame(animate);
+  if (!renderer || !renderer.render) return;
+  if (state.goal) {
+    if (REDUCED) { state.target = state.goal.target; state.dist = state.goal.dist; state.goal = null; }
+    else {
+      state.target.x += (state.goal.target.x - state.target.x) * 0.08;
+      state.target.y += (state.goal.target.y - state.target.y) * 0.08;
+      state.target.z += (state.goal.target.z - state.target.z) * 0.08;
+      state.dist += (state.goal.dist - state.dist) * 0.08;
+      if (Math.abs(state.goal.dist - state.dist) < 0.3 && Math.hypot(state.goal.target.x - state.target.x, state.goal.target.y - state.target.y, state.goal.target.z - state.target.z) < 0.3) state.goal = null;
+    }
+  } else if (!state.interacted && !REDUCED) {
+    state.theta += 0.0012;
+  }
+  renderer.render(now);
+  updateLabels();
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
